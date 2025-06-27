@@ -47,3 +47,6 @@ coverage.xml
 # Windows
 Thumbs.db
 ehthumbs.db
+
+# reports
+reports/
