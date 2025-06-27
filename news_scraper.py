@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from serpapi import GoogleSearch
 from config import Config
 
@@ -18,27 +18,21 @@ class NewsScraper:
         if not self.api_key:
             raise ValueError("SERPAPI_KEY not found in environment variables")
     
-    def search_google_news(self, query: str, start_date: datetime = None) -> List[Dict[str, Any]]:
+    def search_google_news(self, query: str, start_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """Search Google News for MRO hangar projects"""
         try:
             params = {
                 "engine": "google_news",
                 "q": query,
                 "api_key": self.api_key,
-                "num": self.config.MAX_RESULTS_PER_QUERY,
                 **self.config.REGIONS[self.region]['google_news']
             }
-            
-            if start_date:
-                # Add date range for backfill
-                params["tbm"] = "nws"
-                params["tbs"] = f"cdr:1,cd_min:{start_date.strftime('%m/%d/%Y')}"
             
             search = GoogleSearch(params)
             results = search.get_dict()
             
             if "news_results" in results:
-                return self._filter_mro_articles(results["news_results"])
+                return self._filter_mro_articles(results["news_results"], start_date)
             else:
                 logger.warning(f"No news results found for query: {query}")
                 return []
@@ -47,7 +41,7 @@ class NewsScraper:
             logger.error(f"Error searching Google News for query '{query}': {str(e)}")
             return []
     
-    def search_bing_news(self, query: str, start_date: datetime = None) -> List[Dict[str, Any]]:
+    def search_bing_news(self, query: str, start_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """Search Bing News for MRO hangar projects"""
         try:
             params = {
@@ -75,7 +69,7 @@ class NewsScraper:
             logger.error(f"Error searching Bing News for query '{query}': {str(e)}")
             return []
     
-    def _filter_mro_articles(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _filter_mro_articles(self, articles: List[Dict[str, Any]], start_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """Filter articles to only include MRO hangar projects, excluding museums and unrelated content"""
         filtered_articles = []
         
@@ -105,7 +99,20 @@ class NewsScraper:
             
             # Check for MRO-related keywords
             if any(keyword in content for keyword in mro_keywords):
-                filtered_articles.append(article)
+                # Filter by date if start_date is provided
+                if start_date:
+                    date_str = article.get('date', '')
+                    if date_str:
+                        try:
+                            # Parse the date from the article
+                            article_date = self._parse_article_date(date_str)
+                            if article_date and article_date >= start_date:
+                                filtered_articles.append(article)
+                        except Exception:
+                            # If date parsing fails, include the article
+                            filtered_articles.append(article)
+                else:
+                    filtered_articles.append(article)
         
         return filtered_articles
     
@@ -198,6 +205,7 @@ class NewsScraper:
         try:
             # Handle various date formats
             date_formats = [
+                '%m/%d/%Y, %I:%M %p, +0000 UTC',  # 04/19/2012, 07:00 AM, +0000 UTC
                 '%m/%d/%Y, %I:%M %p',  # 11/12/2024, 09:03 AM
                 '%Y-%m-%d',
                 '%m/%d/%Y',
@@ -247,4 +255,30 @@ class NewsScraper:
         elif any(word in content for word in french_words):
             return 'French'
         else:
-            return 'English'  # Default to English 
+            return 'English'  # Default to English
+    
+    def _parse_article_date(self, date_str: str) -> Optional[datetime]:
+        """Parse article date string to datetime object"""
+        if not date_str:
+            return None
+        
+        try:
+            # Handle various date formats
+            date_formats = [
+                '%m/%d/%Y, %I:%M %p, +0000 UTC',  # 04/19/2012, 07:00 AM, +0000 UTC
+                '%m/%d/%Y, %I:%M %p',  # 11/12/2024, 09:03 AM
+                '%Y-%m-%d',
+                '%m/%d/%Y',
+                '%d/%m/%Y'
+            ]
+            
+            for fmt in date_formats:
+                try:
+                    return datetime.strptime(date_str, fmt)
+                except ValueError:
+                    continue
+            
+            return None
+            
+        except Exception:
+            return None 

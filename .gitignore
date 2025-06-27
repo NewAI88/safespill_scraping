@@ -50,3 +50,9 @@ ehthumbs.db
 
 # reports
 reports/
+
+# environment variables
+.env
+
+# logs
+*.log

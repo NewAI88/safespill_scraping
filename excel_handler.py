@@ -56,7 +56,7 @@ class ExcelHandler:
                     if field == 'Source URL' and value:
                         cell.hyperlink = value
                         cell.font = Font(color="0000FF", underline="single")
-                        cell.value = "Click to open"
+                        cell.value = value
             
             # Auto-adjust column widths
             for column in ws.columns:
@@ -83,51 +83,66 @@ class ExcelHandler:
     
     def update_existing_excel(self, new_data: List[Dict[str, Any]]) -> str:
         """Update existing Excel file by adding new data to the top"""
-        try:
-            if not os.path.exists(self.filepath):
-                return self.create_new_excel(new_data)
-            
-            # Load existing workbook
-            wb = load_workbook(self.filepath)
-            ws = wb.active
-            
-            # Get existing data
-            existing_data = []
-            headers = self.config.EXCEL_FIELDS
-            
-            # Read existing data (skip header row)
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                if any(row):  # Skip empty rows
-                    row_dict = dict(zip(headers, row))
-                    existing_data.append(row_dict)
-            
-            # Combine new data with existing data (new data first)
-            combined_data = new_data + existing_data
-            
-            # Clear existing content (except header)
-            ws.delete_rows(2, ws.max_row)
-            
-            # Add combined data
-            for row_idx, row_data in enumerate(combined_data, 2):
-                for col_idx, field in enumerate(headers, 1):
-                    value = row_data.get(field, '')
-                    cell = ws.cell(row=row_idx, column=col_idx, value=value)
-                    
-                    # Add hyperlink for Source URL column
-                    if field == 'Source URL' and value:
-                        cell.hyperlink = value
-                        cell.font = Font(color="0000FF", underline="single")
-                        cell.value = "Click to open"
-            
-            # Save the workbook
-            wb.save(self.filepath)
-            
-            print(f"Updated Excel file: {self.filepath}")
-            return self.filepath
-            
-        except Exception as e:
-            print(f"Error updating Excel file: {str(e)}")
-            raise
+        max_retries = 3
+        retry_delay = 2  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                if not os.path.exists(self.filepath):
+                    return self.create_new_excel(new_data)
+                
+                # Load existing workbook
+                wb = load_workbook(self.filepath)
+                ws = wb.active
+                
+                # Get existing data
+                existing_data = []
+                headers = self.config.EXCEL_FIELDS
+                
+                # Read existing data (skip header row)
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if any(row):  # Skip empty rows
+                        row_dict = dict(zip(headers, row))
+                        existing_data.append(row_dict)
+                
+                # Combine new data with existing data (new data first)
+                combined_data = new_data + existing_data
+                
+                # Clear existing content (except header)
+                ws.delete_rows(2, ws.max_row)
+                
+                # Add combined data
+                for row_idx, row_data in enumerate(combined_data, 2):
+                    for col_idx, field in enumerate(headers, 1):
+                        value = row_data.get(field, '')
+                        cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                        
+                        # Add hyperlink for Source URL column
+                        if field == 'Source URL' and value:
+                            cell.hyperlink = value
+                            cell.font = Font(color="0000FF", underline="single")
+                            cell.value = value
+                
+                # Save the workbook
+                wb.save(self.filepath)
+                
+                print(f"Updated Excel file: {self.filepath}")
+                return self.filepath
+                
+            except PermissionError as e:
+                if attempt < max_retries - 1:
+                    print(f"Permission denied on attempt {attempt + 1}. File may be open in another application.")
+                    print(f"Please close the Excel file '{self.filename}' and retrying in {retry_delay} seconds...")
+                    import time
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    print(f"Error updating Excel file after {max_retries} attempts: {str(e)}")
+                    print(f"Please ensure the file '{self.filename}' is not open in Excel or another application.")
+                    raise
+            except Exception as e:
+                print(f"Error updating Excel file: {str(e)}")
+                raise
     
     def get_existing_urls(self) -> set:
         """Get existing URLs from the Excel file to avoid duplicates"""
@@ -145,7 +160,7 @@ class ExcelHandler:
             for row in ws.iter_rows(min_row=2, values_only=True):
                 if row and len(row) >= url_column:
                     url = row[url_column - 1]
-                    if url and url != "Click to open":
+                    if url:
                         existing_urls.add(url)
             
             return existing_urls
