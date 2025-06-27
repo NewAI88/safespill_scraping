@@ -164,7 +164,7 @@ class NewsScraper:
         if is_backfill:
             start_date = datetime.now() - timedelta(days=365)
         
-        queries = self.config.SEARCH_QUERIES[self.region]
+        queries = self.config.SEARCH_QUERIES
         for query in queries:
             logger.info(f"Searching for query: {query}")
             

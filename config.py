@@ -16,22 +16,14 @@ class Config:
     RECIPIENT_EMAILS = os.getenv('RECIPIENT_EMAILS', '').split(',')
     
     # Search Configuration
-    SEARCH_QUERIES = {
-        'uk_na': [
-            'aircraft MRO hangar construction',
-            'aircraft maintenance hangar retrofit',
-            'MRO facility expansion',
-            'aircraft hangar renovation',
-            'aviation maintenance facility'
-        ],
-        'emea': [
+    SEARCH_QUERIES = [
+            # 'aircraft MRO hangar construction maintenance'
             'aircraft MRO hangar construction',
             'aircraft maintenance hangar retrofit',
             'MRO facility expansion',
             'aircraft hangar renovation',
             'aviation maintenance facility'
         ]
-    }
     
     # Regional Settings
     REGIONS = {
@@ -75,5 +67,5 @@ class Config:
     SCHEDULE_DAY = 'monday'
     
     # Search Parameters
-    MAX_RESULTS_PER_QUERY = 100
+    MAX_RESULTS_PER_QUERY = 10
     BACKFILL_MONTHS = 12 
