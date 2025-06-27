@@ -34,7 +34,39 @@ class SafespillScraper:
     def __init__(self):
         self.config = Config()
         self.regions = ['uk_na', 'emea']
+        self.existing_urls = self._load_existing_urls()
         
+    def _load_existing_urls(self) -> set:
+        """Load all existing URLs from both region Excel files into a set"""
+        urls = set()
+        for region in self.regions:
+            handler = ExcelHandler(region)
+            try:
+                if not os.path.exists(handler.filepath):
+                    continue
+                from openpyxl import load_workbook
+                wb = load_workbook(handler.filepath)
+                ws = wb.active
+                url_column = self.config.EXCEL_FIELDS.index('Source URL') + 1
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if row and len(row) >= url_column:
+                        url = row[url_column - 1]
+                        if url:
+                            urls.add(url)
+            except Exception as e:
+                print(f"Error loading URLs from {handler.filepath}: {str(e)}")
+        return urls
+
+    def filter_new_urls(self, articles: list) -> list:
+        """Filter out articles whose 'Source URL' is already in self.existing_urls. Update self.existing_urls with new ones."""
+        new_articles = []
+        for article in articles:
+            url = article.get('Source URL', '')
+            if url and url not in self.existing_urls:
+                new_articles.append(article)
+                self.existing_urls.add(url)
+        return new_articles
+
     def run_scraping_for_region(self, region: str, is_backfill: bool = False) -> bool:
         """Run the complete scraping process for a specific region"""
         try:
@@ -57,8 +89,8 @@ class SafespillScraper:
             logger.info(f"Processing {len(articles)} articles...")
             processed_articles = scraper.process_articles(articles)
             
-            # Filter out existing articles
-            new_articles = excel_handler.filter_new_articles(processed_articles)
+            # Filter out existing articles using self.existing_urls
+            new_articles = self.filter_new_urls(processed_articles)
             
             if not new_articles:
                 logger.info(f"No new articles found for region: {region}")
