@@ -243,7 +243,9 @@ class NewsScraper:
         try:
             # Handle relative date formats (Bing News)
             now = datetime.now()
-            if date_str.endswith('h'):
+            if date_str.endswith('m'):
+                return now.strftime('%Y-%m-%d')
+            elif date_str.endswith('h'):
                 hours = int(date_str[:-1])
                 parsed_date = now - timedelta(hours=hours)
                 return parsed_date.strftime('%Y-%m-%d')
@@ -251,8 +253,8 @@ class NewsScraper:
                 days = int(date_str[:-1])
                 parsed_date = now - timedelta(days=days)
                 return parsed_date.strftime('%Y-%m-%d')
-            elif date_str.endswith('m'):
-                months = int(date_str[:-1])
+            elif date_str.endswith('mon'):
+                months = int(date_str[:-3])
                 parsed_date = now - timedelta(days=months*30)
                 return parsed_date.strftime('%Y-%m-%d')
             elif date_str.endswith('y'):
