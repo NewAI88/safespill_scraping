@@ -40,9 +40,37 @@ class NewsScraper:
         except Exception as e:
             logger.error(f"Error searching Google News for query '{query}': {str(e)}")
             return []
-    
-    def search_bing_news(self, query: str, start_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
-        """Search Bing News for MRO hangar projects"""
+
+    def _check_date(self, date_str: str, is_backfill: bool) -> bool:
+        """Check if the Bing News date string is valid for the current mode (backfill or weekly)"""
+        if not date_str:
+            logger.warning("Empty date string provided")
+            return False
+        try:
+            if date_str.endswith('m'):
+                return True
+            if date_str.endswith('h'):
+                return True
+            elif date_str.endswith('d'):
+                if is_backfill:
+                    return True
+                else:
+                    days = int(date_str[:-1])
+                    if days < 8:
+                        return True
+                    return False
+            elif date_str.endswith('mon') and is_backfill:
+                return True
+            elif date_str.endswith('y') and is_backfill:
+                years = int(date_str[:-1])
+                if years < 2:
+                    return True
+            return False
+        except Exception:
+            return False
+
+    def search_bing_news(self, query: str, is_backfill: bool = False) -> List[Dict[str, Any]]:
+        """Search Bing News for MRO hangar projects with pagination and date range check"""
         try:
             params = {
                 "engine": "bing_news",
@@ -51,20 +79,32 @@ class NewsScraper:
                 "count": self.config.MAX_RESULTS_PER_QUERY,
                 **self.config.REGIONS[self.region]['bing_news']
             }
-            
-            if start_date:
-                # Add date range for backfill
-                params["freshness"] = "PastYear"
-            
-            search = GoogleSearch(params)
-            results = search.get_dict()
-            
-            if "organic_results" in results:
-                return self._filter_mro_articles(results["organic_results"])
+            if is_backfill:
+                params['qft'] = 'sortbydate="1"'
             else:
-                logger.warning(f"No news results found for query: {query}")
-                return []
-                
+                params['qft'] = 'interval="8"+sortbydate="1"'
+
+            all_articles = []
+            first = 1
+            stop_paging = False
+            while not stop_paging:
+                params['first'] = first
+                search = GoogleSearch(params)
+                results = search.get_dict()
+                organic_results = results.get("organic_results", [])
+                if not organic_results:
+                    break
+                for article in organic_results:
+                    date_str = article.get('date', '')
+                    is_valid_date = self._check_date(date_str, is_backfill)
+                    if not is_valid_date:
+                        stop_paging = True
+                        break
+                    all_articles.append(article)
+                if stop_paging or len(organic_results) < params['count']:
+                    break
+                first += params['count']
+            return self._filter_mro_articles(all_articles)
         except Exception as e:
             logger.error(f"Error searching Bing News for query '{query}': {str(e)}")
             return []
@@ -125,7 +165,6 @@ class NewsScraper:
             start_date = datetime.now() - timedelta(days=365)
         
         queries = self.config.SEARCH_QUERIES[self.region]
-        
         for query in queries:
             logger.info(f"Searching for query: {query}")
             
@@ -134,12 +173,10 @@ class NewsScraper:
             all_articles.extend(google_results)
             
             # Search Bing News
-            bing_results = self.search_bing_news(query, start_date)
+            bing_results = self.search_bing_news(query, is_backfill=is_backfill)
             all_articles.extend(bing_results)
-        
         # Remove duplicates based on URL
         unique_articles = self._remove_duplicates(all_articles)
-        
         logger.info(f"Found {len(unique_articles)} unique articles for {self.region}")
         return unique_articles
     
@@ -159,7 +196,9 @@ class NewsScraper:
     def process_articles(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Process and format articles for Excel output"""
         processed_articles = []
-        current_week = datetime.now().strftime('%Y-%m-%d')
+        now = datetime.now()
+        iso_year, iso_week, _ = now.isocalendar()
+        current_week = f"{iso_year}-W{iso_week:02d}"
         
         for article in articles:
             try:
@@ -198,12 +237,29 @@ class NewsScraper:
         return processed_articles
     
     def _parse_date(self, date_str: str) -> str:
-        """Parse and format date string"""
+        """Parse and format date string for both absolute and relative formats"""
         if not date_str:
             return datetime.now().strftime('%Y-%m-%d')
-        
         try:
-            # Handle various date formats
+            # Handle relative date formats (Bing News)
+            now = datetime.now()
+            if date_str.endswith('h'):
+                hours = int(date_str[:-1])
+                parsed_date = now - timedelta(hours=hours)
+                return parsed_date.strftime('%Y-%m-%d')
+            elif date_str.endswith('d'):
+                days = int(date_str[:-1])
+                parsed_date = now - timedelta(days=days)
+                return parsed_date.strftime('%Y-%m-%d')
+            elif date_str.endswith('m'):
+                months = int(date_str[:-1])
+                parsed_date = now - timedelta(days=months*30)
+                return parsed_date.strftime('%Y-%m-%d')
+            elif date_str.endswith('y'):
+                years = int(date_str[:-1])
+                parsed_date = now - timedelta(days=years*365)
+                return parsed_date.strftime('%Y-%m-%d')
+            # Handle absolute date formats (Google News)
             date_formats = [
                 '%m/%d/%Y, %I:%M %p, +0000 UTC',  # 04/19/2012, 07:00 AM, +0000 UTC
                 '%m/%d/%Y, %I:%M %p',  # 11/12/2024, 09:03 AM
@@ -211,17 +267,14 @@ class NewsScraper:
                 '%m/%d/%Y',
                 '%d/%m/%Y'
             ]
-            
             for fmt in date_formats:
                 try:
                     parsed_date = datetime.strptime(date_str, fmt)
                     return parsed_date.strftime('%Y-%m-%d')
                 except ValueError:
                     continue
-            
             # If no format matches, return current date
             return datetime.now().strftime('%Y-%m-%d')
-            
         except Exception:
             return datetime.now().strftime('%Y-%m-%d')
     
