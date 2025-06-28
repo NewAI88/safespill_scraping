@@ -211,7 +211,13 @@ def main():
                     logger.error(f"Invalid region: {region}. Use 'uk_na' or 'emea'")
             else:
                 logger.error("Please specify a region: 'uk_na' or 'emea'")
-                
+        elif command == 'email':
+            # Send test email
+            email_sender = EmailSender()
+            if email_sender.test_send():
+                logger.info("Test email sent successfully")
+            else:
+                logger.error("Failed to send test email")
         else:
             print("Usage:")
             print("  python main.py backfill    - Run initial 12-month backfill")
