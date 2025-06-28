@@ -102,16 +102,17 @@ class SafespillScraper:
             
             # Send email report
             logger.info("Sending email report...")
-            email_success = email_sender.send_report_email(
-                excel_filepath, region, len(new_articles)
-            )
+            for recipient in self.config.REGIONS[region]['recipient_emails']:
+                email_success = email_sender.send_report_email(
+                    excel_filepath, region, len(new_articles), recipient
+                )
+                logger.info(f"Email sent to {recipient}: {'Success' if email_success else 'Failed'}")
             
             # Log summary
             file_info = excel_handler.get_file_info()
             logger.info(f"Scraping completed for {region}:")
             logger.info(f"  - New articles: {len(new_articles)}")
             logger.info(f"  - Total articles in file: {file_info['row_count']}")
-            logger.info(f"  - Email sent: {email_success}")
             
             return True
             
@@ -214,10 +215,19 @@ def main():
         elif command == 'email':
             # Send test email
             email_sender = EmailSender()
-            if email_sender.test_send():
-                logger.info("Test email sent successfully")
-            else:
-                logger.error("Failed to send test email")
+            
+            for region in scraper.regions:
+                excel_handler = ExcelHandler(region)
+                file_info = excel_handler.get_file_info()
+                if not file_info['filepath']:
+                    logger.error(f"No Excel file found for region: {region}")
+                    continue
+                
+                article_count = len(excel_handler.get_existing_urls())
+                for recipient in scraper.config.REGIONS[region]['recipient_emails']:
+                    if not email_sender.send_report_email(file_info['filepath'], region, article_count, recipient):
+                        logger.error(f"Failed to send email for region: {region} to {recipient}")
+
         else:
             print("Usage:")
             print("  python main.py backfill    - Run initial 12-month backfill")

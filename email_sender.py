@@ -13,12 +13,11 @@ class EmailSender:
         self.api_key = os.getenv('MJ_APIKEY_PUBLIC')
         self.api_secret = os.getenv('MJ_APIKEY_PRIVATE')
         self.sender_email = os.getenv('SENDER_EMAIL')
-        self.recipient_email = os.getenv('RECIPIENT_EMAIL')
         self.mailjet = Client(auth=(self.api_key, self.api_secret), version='v3.1')
     
-    def send_report_email(self, filepath: str, region: str, article_count: int) -> bool:
+    def send_report_email(self, filepath: str, region: str, article_count: int, recipient_email: str) -> bool:
         try:
-            if not all([self.api_key, self.api_secret, self.sender_email, self.recipient_email]):
+            if not all([self.api_key, self.api_secret, self.sender_email, recipient_email]):
                 print("Mailjet configuration incomplete.")
                 return False
 
@@ -37,7 +36,7 @@ class EmailSender:
                         "Name": "Safespill Reports"
                     },
                     "To": [{
-                        "Email": self.recipient_email,
+                        "Email": recipient_email,
                         "Name": "Safespill Team"
                     }],
                     "Subject": subject,

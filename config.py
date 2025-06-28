@@ -31,7 +31,8 @@ class Config:
             'additional_queries': [ 'United States', 'United Kingdom', 'Canada'],
             # 'google_news': {'gl': 'us', 'hl': 'en'},
             # 'bing_news': {'cc': 'us'},
-            'countries': ['United States', 'Canada', 'United Kingdom']
+            'countries': ['United States', 'Canada', 'United Kingdom'],
+            'recipient_emails': ["tristanm@safespill.com", "samb@safespill.com"]
         },
         'emea': {
             'additional_queries': ['Europe', 'Middle East', 'Africa'],
@@ -45,7 +46,8 @@ class Config:
                          'United Arab Emirates', 'Saudi Arabia', 'Qatar', 'Kuwait',
                          'Bahrain', 'Oman', 'Jordan', 'Lebanon', 'Israel', 'Turkey',
                          'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'Libya', 'South Africa',
-                         'Nigeria', 'Kenya', 'Ethiopia', 'Ghana', 'Uganda', 'Tanzania']
+                         'Nigeria', 'Kenya', 'Ethiopia', 'Ghana', 'Uganda', 'Tanzania'],
+            'recipient_emails': ["tristanm@safespill.com", "rogerb@safespill.com"]
         }
     }
     
