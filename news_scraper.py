@@ -1,4 +1,7 @@
 import json
+from colorlog import ColoredFormatter
+
+# Configure colorful logging using Rich
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
@@ -6,8 +9,44 @@ from serpapi import GoogleSearch
 from config import Config
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("color_logger")
+# logger.setLevel(logging.DEBUG)
+
+# Clear existing handlers to avoid duplicate logs
+if logger.hasHandlers():
+    logger.handlers.clear()
+
+
+# Create console handler
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+
+# Define color format
+formatter = ColoredFormatter(
+    "%(log_color)s[%(levelname)s]%(reset)s %(message_log_color)s%(message)s",
+    log_colors={
+        'DEBUG':    'cyan',
+        'INFO':     'green',
+        'WARNING':  'yellow',
+        'ERROR':    'red',
+        'CRITICAL': 'bold_red',
+    },
+    secondary_log_colors={
+        'message': {
+            'DEBUG':    'white',
+            'INFO':     'bold_green',
+            'WARNING':  'bold_yellow',
+            'ERROR':    'bold_red',
+            'CRITICAL': 'bold_red',
+        }
+    },
+    style='%'
+)
+
+# Apply formatter to handler
+ch.setFormatter(formatter)
+logger.addHandler(ch)
 
 class NewsScraper:
     def __init__(self, region: str):
@@ -25,7 +64,6 @@ class NewsScraper:
                 "engine": "google_news",
                 "q": query,
                 "api_key": self.api_key,
-                **self.config.REGIONS[self.region]['google_news']
             }
             
             search = GoogleSearch(params)
@@ -34,7 +72,10 @@ class NewsScraper:
             if "news_results" in results:
                 return self._filter_mro_articles(results["news_results"], start_date)
             else:
-                logger.warning(f"No news results found for query: {query}")
+                if "error" in results:
+                    logger.error(f"Error in search results for query '{query}': {results['error']}")
+                else:
+                    logger.warning(f"No news results found for query: {query}")
                 return []
                 
         except Exception as e:
@@ -76,8 +117,7 @@ class NewsScraper:
                 "engine": "bing_news",
                 "q": query,
                 "api_key": self.api_key,
-                "count": self.config.MAX_RESULTS_PER_QUERY,
-                **self.config.REGIONS[self.region]['bing_news']
+                "count": self.config.MAX_RESULTS_PER_QUERY
             }
             if is_backfill:
                 params['qft'] = 'sortbydate="1"'
@@ -166,15 +206,17 @@ class NewsScraper:
         
         queries = self.config.SEARCH_QUERIES
         for query in queries:
-            logger.info(f"Searching for query: {query}")
-            
-            # Search Google News
-            google_results = self.search_google_news(query, start_date)
-            all_articles.extend(google_results)
-            
-            # Search Bing News
-            bing_results = self.search_bing_news(query, is_backfill=is_backfill)
-            all_articles.extend(bing_results)
+            for additional_query in self.config.REGIONS[self.region].get('additional_queries', []):
+                real_query = f"{query} {additional_query}"
+                logger.info(f"Searching for query: {real_query}")
+
+                # Search Google News
+                google_results = self.search_google_news(real_query, start_date)
+                all_articles.extend(google_results)
+
+                # Search Bing News
+                bing_results = self.search_bing_news(real_query, is_backfill=is_backfill)
+                all_articles.extend(bing_results)
         # Remove duplicates based on URL
         unique_articles = self._remove_duplicates(all_articles)
         logger.info(f"Found {len(unique_articles)} unique articles for {self.region}")

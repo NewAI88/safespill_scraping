@@ -28,13 +28,15 @@ class Config:
     # Regional Settings
     REGIONS = {
         'uk_na': {
-            'google_news': {'gl': 'us', 'hl': 'en'},
-            'bing_news': {'cc': 'us'},
+            'additional_queries': [ 'United States', 'United Kingdom', 'Canada'],
+            # 'google_news': {'gl': 'us', 'hl': 'en'},
+            # 'bing_news': {'cc': 'us'},
             'countries': ['United States', 'Canada', 'United Kingdom']
         },
         'emea': {
-            'google_news': {'gl': 'de', 'hl': 'en'},
-            'bing_news': {'cc': 'de'},
+            'additional_queries': ['Europe', 'Middle East', 'Africa'],
+            # 'google_news': {'gl': 'de', 'hl': 'en'},
+            # 'bing_news': {'cc': 'de'},
             'countries': ['Germany', 'France', 'Italy', 'Spain', 'Netherlands', 
                          'Belgium', 'Switzerland', 'Austria', 'Poland', 'Czech Republic',
                          'Hungary', 'Romania', 'Bulgaria', 'Croatia', 'Slovenia',
