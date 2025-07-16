@@ -109,7 +109,7 @@ class ExcelHandler:
                 # Filter new data to avoid duplicates
                 filtered_new_data = []
                 for article in new_data:
-                    title = article.get('Title', '').split()[0].lower()
+                    title = article.get('Project Title', '').split()[0].lower()
                     region = article.get('Region', '').lower()
                     country = article.get('Country', '').lower()
                     key = f"{title}_{region}_{country}"
