@@ -5,11 +5,12 @@ from typing import List, Dict, Any
 import math
 
 class HangarArticleAnalyzer:
-    def __init__(self, api_key: str, model: str = "gpt-4o"):
+    def __init__(self, api_key: str, model: str = "gpt-4o", default_region: str = "UK_NA"):
         self.client = openai.OpenAI(api_key=api_key)
         self.model = model
         self.batch_size = 10  # Safe batch size for 50-token articles
-        
+        self.default_region = default_region
+
     def create_batch_prompt(self, articles: List[Dict[str, str]]) -> str:
         """Create optimized batch prompt for multiple articles"""
         
@@ -67,7 +68,7 @@ Articles to analyze:
         
         articles_text = ""
         for i, article in enumerate(articles, 1):
-            articles_text += f"\n{i}. Title: {article['title']}\nSummary: {article['summary']}\n"
+            articles_text += f"\n{i}. Title: {article['Project Title']}\nSummary: {article['Summary']}\n"
         
         response_format = f"""
 Return JSON array:
@@ -80,7 +81,7 @@ Return JSON array:
         
         return system_prompt + articles_text + response_format
 
-    def validate_result(self, result: Dict[str, Any], default_region: str = "UK_NA") -> Dict[str, Any]:
+    def validate_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """Validate and clean result fields"""
         
         # Get country first
@@ -107,7 +108,7 @@ Return JSON array:
             elif country in ['MX', 'BR', 'AR', 'CL', 'CO', 'PE', 'VE', 'EC', 'BO', 'PY', 'UY', 'GY', 'SR', 'GF', 'CR', 'PA', 'NI', 'HN', 'GT', 'BZ', 'SV', 'CU', 'DO', 'HT', 'JM', 'TT', 'BB', 'GD', 'VC', 'LC', 'AG', 'DM', 'KN', 'BS', 'BM', 'PR', 'VI', 'AW', 'CW', 'SX', 'BQ', 'MQ', 'GP', 'BL', 'MF', 'PM', 'TC', 'AI', 'VG', 'KY', 'MS', 'FK']:
                 result['region'] = 'LATAM'
             else:
-                result['region'] = default_region  # Default fallback
+                result['region'] = self.default_region  # Default fallback
         else:
             result['region'] = current_region
 
@@ -117,7 +118,7 @@ Return JSON array:
         
         return result
 
-    def analyze_batch(self, articles: List[Dict[str, str]], default_region: str = "UK_NA") -> List[Dict[str, Any]]:
+    def analyze_batch(self, articles: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         """Analyze a batch of articles"""
         
         try:
@@ -136,17 +137,22 @@ Return JSON array:
             
             # Validate each result
             validated_results = []
-            for raw_result in raw_results:
-                validated_result = self.validate_result(raw_result, default_region=default_region)
-                validated_results.append(validated_result)
-            
+            for idx, raw_result in enumerate(raw_results):
+                validated_result = self.validate_result(raw_result)
+                validated_results.append(articles[idx] | {
+                    "Country": validated_result.get("country"),
+                    "Region": validated_result.get("region"),
+                    "Is Hangar Related": validated_result.get("is_hangar_related"),
+                    "Completion Status": validated_result.get("completion_status")
+                })  # Merge original article data with analysis result
+
             return validated_results
             
         except Exception as e:
             print(f"Error in batch analysis: {e}")
             return []
 
-    def process_all_articles(self, articles: List[Dict[str, str]], default_region: str = "UK_NA") -> List[Dict[str, Any]]:
+    def process_all_articles(self, articles: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         """Process all articles in batches"""
         
         all_results = []
@@ -158,22 +164,18 @@ Return JSON array:
             
             print(f"Processing batch {batch_num}/{total_batches} ({len(batch)} articles)")
             
-            batch_results = self.analyze_batch(batch, default_region=default_region)
+            batch_results = self.analyze_batch(batch)
             
             if batch_results:
-                # Add original article data to results
-                for j, result in enumerate(batch_results):
-                    if j < len(batch):
-                        result['original_title'] = batch[j]['title']
-                        result['original_summary'] = batch[j]['summary']
-                
                 all_results.extend(batch_results)
             
             # Rate limiting - be respectful to API
             time.sleep(1)
         
-        return all_results
-    
+        filtered_results = [r for r in all_results if r.get("Is Hangar Related", True) and r.get("Completion Status", False) == False and r.get("Region") == self.default_region]
+
+        return filtered_results
+
     def generate_summary_report(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Generate detailed summary report"""
         
@@ -287,7 +289,6 @@ def filter_files():
 
     excel_files = glob.glob(os.path.join(reports_folder, "*.xlsx"))
 
-    analyzer = HangarArticleAnalyzer(api_key=os.getenv("OPENAI_API_KEY"))
 
     # Define fills
     red_fill = PatternFill(start_color="fa0228", end_color="fa0228", fill_type="solid")
@@ -297,6 +298,7 @@ def filter_files():
     for file in excel_files:
         file_name = os.path.basename(file)
         default_region = file_name[:-21] if file_name.endswith("_hangar_projects.xlsx") else default_region
+        analyzer = HangarArticleAnalyzer(api_key=os.getenv("OPENAI_API_KEY"), default_region=default_region)
         df = pd.read_excel(file)
         articles = []
         for idx, row in df.iterrows():
@@ -305,7 +307,7 @@ def filter_files():
                 "summary": str(row.get("Summary", ""))
             })
 
-        results = analyzer.process_all_articles(articles, default_region)
+        results = analyzer.process_all_articles(articles)
 
         # Add analysis columns
         df["is_hangar_related"] = [r.get("is_hangar_related", False) for r in results]

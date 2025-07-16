@@ -248,24 +248,24 @@ class NewsScraper:
                 title = article.get('title', '').strip()
                 url = article.get('link', '')
                 snippet = article.get('snippet', '').strip()
-                source = article.get('source', '')
+                # source = article.get('source', '')
                 date_str = article.get('date', '')
                 
                 # Parse date
                 published_date = self._parse_date(date_str)
                 
                 # Determine country/region
-                country_region = self._determine_country_region(title, snippet, source)
+                # country_region = self._determine_country_region(title, snippet, source)
                 
                 # Determine language
-                language = self._determine_language(title, snippet)
+                # language = self._determine_language(title, snippet)
                 
                 processed_article = {
                     'Project Title': title,
                     'Source URL': url,
                     'Summary': snippet,
-                    'Country/Region': country_region,
-                    'Language': language,
+                    # 'Country/Region': country_region,
+                    # 'Language': language,
                     'Date Published': published_date,
                     'Week Collected': current_week
                 }

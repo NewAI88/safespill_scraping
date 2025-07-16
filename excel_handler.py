@@ -18,20 +18,17 @@ class ExcelHandler:
         
         # Define filename based on region
         if region == 'uk_na':
-            self.filename = 'UK_NA_hangar_projects.xlsx'
+            self.filename = 'UK_NA.xlsx'
         elif region == 'emea':
-            self.filename = 'EMEA_hangar_projects.xlsx'
+            self.filename = 'EMEA.xlsx'
         else:
-            self.filename = f'{region}_hangar_projects.xlsx'
-        
+            self.filename = f'{region}.xlsx'
+
         self.filepath = os.path.join(self.reports_dir, self.filename)
     
-    def create_new_excel(self, data: List[Dict[str, Any]]) -> str:
+    def create_new_excel(self) -> str:
         """Create a new Excel file with the scraped data"""
         try:
-            # Convert data to DataFrame
-            df = pd.DataFrame(data)
-            
             # Create workbook and worksheet
             wb = Workbook()
             ws = wb.active
@@ -46,17 +43,17 @@ class ExcelHandler:
                 cell.font = Font(color="FFFFFF", bold=True)
                 cell.alignment = Alignment(horizontal="center")
             
-            # Add data rows
-            for row_idx, row_data in enumerate(data, 2):
-                for col_idx, field in enumerate(headers, 1):
-                    value = row_data.get(field, '')
-                    cell = ws.cell(row=row_idx, column=col_idx, value=value)
+            # # Add data rows
+            # for row_idx, row_data in enumerate(data, 2):
+            #     for col_idx, field in enumerate(headers, 1):
+            #         value = row_data.get(field, '')
+            #         cell = ws.cell(row=row_idx, column=col_idx, value=value)
                     
-                    # Add hyperlink for Source URL column
-                    if field == 'Source URL' and value:
-                        cell.hyperlink = value
-                        cell.font = Font(color="0000FF", underline="single")
-                        cell.value = value
+            #         # Add hyperlink for Source URL column
+            #         if field == 'Source URL' and value:
+            #             cell.hyperlink = value
+            #             cell.font = Font(color="0000FF", underline="single")
+            #             cell.value = value
             
             # Auto-adjust column widths
             for column in ws.columns:
@@ -89,7 +86,7 @@ class ExcelHandler:
         for attempt in range(max_retries):
             try:
                 if not os.path.exists(self.filepath):
-                    return self.create_new_excel(new_data)
+                    self.create_new_excel()
                 
                 # Load existing workbook
                 wb = load_workbook(self.filepath)
@@ -111,6 +108,11 @@ class ExcelHandler:
                 # Clear existing content (except header)
                 ws.delete_rows(2, ws.max_row)
                 
+                # # Define fills
+                # red_fill = PatternFill(start_color="fa0228", end_color="fa0228", fill_type="solid")
+                # blue_fill = PatternFill(start_color="00f7ff", end_color="00f7ff", fill_type="solid")
+                # yellow_fill = PatternFill(start_color="ffe100", end_color="ffe100", fill_type="solid")
+                
                 # Add combined data
                 for row_idx, row_data in enumerate(combined_data, 2):
                     for col_idx, field in enumerate(headers, 1):
@@ -122,6 +124,17 @@ class ExcelHandler:
                             cell.hyperlink = value
                             cell.font = Font(color="0000FF", underline="single")
                             cell.value = value
+                    
+                #     # 🔻 Apply background color based on conditions
+                #     if row_data.get("Region") != self.region.upper():
+                #         ws[f"A{row_idx}"].fill = red_fill
+                #         ws[f"E{row_idx}"].fill = red_fill
+                #     elif not row_data.get("Is Hangar Related", False):
+                #         ws[f"A{row_idx}"].fill = yellow_fill
+                #         ws[f"G{row_idx}"].fill = yellow_fill
+                #     elif row_data.get("Completion Status", False):
+                #         ws[f"A{row_idx}"].fill = blue_fill
+                #         ws[f"H{row_idx}"].fill = blue_fill
                 
                 # Save the workbook
                 wb.save(self.filepath)

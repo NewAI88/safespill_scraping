@@ -16,7 +16,6 @@ class Config:
     SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
     EMAIL_USER = os.getenv('EMAIL_USER')
     EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
-    RECIPIENT_EMAILS = os.getenv('RECIPIENT_EMAILS', '').split(',')
     
     # Search Configuration
     SEARCH_QUERIES = [
@@ -63,9 +62,11 @@ class Config:
         'Project Title',
         'Source URL', 
         'Summary',
-        'Country/Region',
-        'Language',
         'Date Published',
+        "Region",
+        "Country",
+        # "Is Hangar Related",
+        # "Completion Status",
         'Week Collected'
     ]
     

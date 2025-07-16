@@ -13,6 +13,7 @@ from typing import List, Dict, Any
 # Add current directory to path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+from analyzer import HangarArticleAnalyzer
 from news_scraper import NewsScraper
 from excel_handler import ExcelHandler
 from email_sender import EmailSender
@@ -76,7 +77,8 @@ class SafespillScraper:
             scraper = NewsScraper(region)
             excel_handler = ExcelHandler(region)
             email_sender = EmailSender()
-            
+            article_analyzer = HangarArticleAnalyzer(self.config.OPENAI_API_KEY, default_region=region.upper())
+
             # Scrape news articles
             logger.info(f"Scraping news articles for {region}...")
             articles = scraper.scrape_all_sources(is_backfill=is_backfill)
@@ -96,15 +98,19 @@ class SafespillScraper:
                 logger.info(f"No new articles found for region: {region}")
                 return True
             
+            # Analyze articles
+            logger.info(f"Analyzing {len(new_articles)} new articles...")
+            analyzed_articles = article_analyzer.process_all_articles(new_articles)
+
             # Update Excel file
-            logger.info(f"Updating Excel file with {len(new_articles)} new articles...")
-            excel_filepath = excel_handler.update_existing_excel(new_articles)
+            logger.info(f"Updating Excel file with {len(analyzed_articles)} new articles...")
+            excel_filepath = excel_handler.update_existing_excel(analyzed_articles)
             
             # Send email report
             logger.info("Sending email report...")
             for recipient in self.config.REGIONS[region]['recipient_emails']:
                 email_success = email_sender.send_report_email(
-                    excel_filepath, region, len(new_articles), recipient
+                    excel_filepath, region, len(analyzed_articles), recipient
                 )
                 logger.info(f"Email sent to {recipient}: {'Success' if email_success else 'Failed'}")
             
@@ -185,25 +191,20 @@ def main():
         command = sys.argv[1].lower()
         
         if command == 'backfill':
-            # Run initial backfill
             scraper.run_backfill()
             
         elif command == 'weekly':
-            # Run weekly scraping
             scraper.run_weekly_scraping()
             
         elif command == 'test':
-            # Test configuration
             scraper.test_configuration()
             
         elif command == 'schedule':
-            # Start scheduler
             scheduler = ScrapingScheduler()
             scheduler.schedule_weekly_run(scraper.run_weekly_scraping)
             scheduler.run_scheduler()
             
         elif command == 'region':
-            # Run for specific region
             if len(sys.argv) > 2:
                 region = sys.argv[2].lower()
                 if region in ['uk_na', 'emea']:
@@ -212,8 +213,8 @@ def main():
                     logger.error(f"Invalid region: {region}. Use 'uk_na' or 'emea'")
             else:
                 logger.error("Please specify a region: 'uk_na' or 'emea'")
+        
         elif command == 'email':
-            # Send test email
             email_sender = EmailSender()
             
             for region in scraper.regions:
