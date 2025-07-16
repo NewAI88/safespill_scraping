@@ -5,10 +5,10 @@ from typing import List, Dict, Any
 import math
 
 class HangarArticleAnalyzer:
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
+    def __init__(self, api_key: str, model: str = "gpt-4o"):
         self.client = openai.OpenAI(api_key=api_key)
         self.model = model
-        self.batch_size = 250  # Safe batch size for 50-token articles
+        self.batch_size = 10  # Safe batch size for 50-token articles
         
     def create_batch_prompt(self, articles: List[Dict[str, str]]) -> str:
         """Create optimized batch prompt for multiple articles"""
@@ -26,6 +26,8 @@ DETAILED FIELD EXPLANATIONS:
      * Hangar operations, leasing, management,
      * Airport infrastructure projects that INCLUDE hangar facilities
      * Maintenance base construction or expansion
+     * Flight training facilities/academies with hangar components
+     * Aviation training bases and facilities
    - False for:
      * General aviation news
      * Aircraft purchases/sales
@@ -35,16 +37,16 @@ DETAILED FIELD EXPLANATIONS:
      * Aircraft repairs happening IN a hangar (focus on repair, not hangar facility)
      * Emergency aircraft situations that happen to mention hangar location
 
-2. **region** (string):
+2. **country** (string):
+   - 2-letter ISO country code (US, CA, UK, FR, DE, AU, JP, etc.)
+   - Use "N/A" if country cannot be determined from title/summary
+   
+3. **region** (string):
    - Must be exactly ONE of these: "UK_NA", "EMEA", "APAC", "LATAM"
    - UK_NA: United Kingdom, United States, Canada
    - EMEA: Europe (except UK), Middle East, Africa
    - APAC: Asia-Pacific (including Australia, New Zealand)
    - LATAM: Latin America (Mexico, Central America, South America)
-
-3. **country** (string):
-   - 2-letter ISO country code (US, CA, UK, FR, DE, AU, JP, etc.)
-   - Use "N/A" if country cannot be determined from title/summary
 
 4. **completion_status** (boolean):
    - True: Project is already completed/finished/opened
@@ -55,8 +57,8 @@ For each article, return:
 {
     "article_id": number,
     "is_hangar_related": boolean,
-    "region": string,
     "country": string,
+    "region": string,
     "completion_status": boolean
 }
 
@@ -77,27 +79,45 @@ Return JSON array:
 }}"""
         
         return system_prompt + articles_text + response_format
-    
-    def validate_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+
+    def validate_result(self, result: Dict[str, Any], default_region: str = "UK_NA") -> Dict[str, Any]:
         """Validate and clean result fields"""
         
-        # Validate region
-        valid_regions = ["UK_NA", "EMEA", "APAC", "LATAM"]
-        if result.get('region') not in valid_regions:
-            result['region'] = "N/A"  # Default if invalid
-        
-        # Validate country (2-letter code or N/A)
+        # Get country first
         country = result.get('country', 'N/A')
-        if country and len(country) != 2 and country != 'N/A':
+        if country and len(country) == 2 and country != 'N/A':
+            country = country.upper()
+            result['country'] = country
+        else:
             result['country'] = 'N/A'
+            country = 'N/A'
         
+        # Auto-derive region from country if not provided or invalid
+        valid_regions = ["UK_NA", "EMEA", "APAC", "LATAM"]
+        current_region = result.get('region')
+        
+        if current_region not in valid_regions:
+            # Auto-derive region from country
+            if country in ['US', 'CA', 'UK', 'GB']:
+                result['region'] = 'UK_NA'
+            elif country in ['FR', 'DE', 'IT', 'ES', 'NL', 'BE', 'CH', 'AT', 'SE', 'NO', 'DK', 'FI', 'PL', 'CZ', 'HU', 'PT', 'IE', 'GR', 'RO', 'BG', 'HR', 'SI', 'SK', 'LT', 'LV', 'EE', 'MT', 'CY', 'LU', 'AE', 'SA', 'QA', 'KW', 'BH', 'OM', 'JO', 'LB', 'IL', 'TR', 'EG', 'ZA', 'MA', 'TN', 'DZ', 'LY', 'SD', 'ET', 'KE', 'UG', 'TZ', 'ZM', 'ZW', 'BW', 'NA', 'MZ', 'AO', 'GH', 'NG', 'CI', 'SN', 'ML', 'BF', 'NE', 'TD', 'CM', 'CF', 'CG', 'CD', 'GA', 'GQ', 'ST', 'CV', 'GM', 'GW', 'SL', 'LR', 'GN', 'BJ', 'TG', 'RW', 'BI', 'DJ', 'SO', 'ER', 'MW', 'MG', 'MU', 'SC', 'KM', 'YT', 'RE']:
+                result['region'] = 'EMEA'
+            elif country in ['JP', 'CN', 'KR', 'SG', 'TH', 'MY', 'ID', 'PH', 'VN', 'IN', 'PK', 'BD', 'LK', 'MM', 'KH', 'LA', 'BN', 'TL', 'MN', 'KZ', 'KG', 'TJ', 'TM', 'UZ', 'AF', 'IR', 'IQ', 'SY', 'YE', 'PS', 'AU', 'NZ', 'PG', 'FJ', 'SB', 'NC', 'PF', 'WS', 'VU', 'TO', 'TV', 'NR', 'KI', 'PW', 'MH', 'FM', 'GU', 'MP', 'AS', 'CK', 'NU', 'TK', 'WF']:
+                result['region'] = 'APAC'
+            elif country in ['MX', 'BR', 'AR', 'CL', 'CO', 'PE', 'VE', 'EC', 'BO', 'PY', 'UY', 'GY', 'SR', 'GF', 'CR', 'PA', 'NI', 'HN', 'GT', 'BZ', 'SV', 'CU', 'DO', 'HT', 'JM', 'TT', 'BB', 'GD', 'VC', 'LC', 'AG', 'DM', 'KN', 'BS', 'BM', 'PR', 'VI', 'AW', 'CW', 'SX', 'BQ', 'MQ', 'GP', 'BL', 'MF', 'PM', 'TC', 'AI', 'VG', 'KY', 'MS', 'FK']:
+                result['region'] = 'LATAM'
+            else:
+                result['region'] = default_region  # Default fallback
+        else:
+            result['region'] = current_region
+
         # Ensure boolean fields
-        result['is_hangar_related'] = bool(result.get('is_hangar_related', False))
+        result['is_hangar_related'] = bool(result.get('is_hangar_related', True))
         result['completion_status'] = bool(result.get('completion_status', False))
         
         return result
 
-    def analyze_batch(self, articles: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+    def analyze_batch(self, articles: List[Dict[str, str]], default_region: str = "UK_NA") -> List[Dict[str, Any]]:
         """Analyze a batch of articles"""
         
         try:
@@ -117,7 +137,7 @@ Return JSON array:
             # Validate each result
             validated_results = []
             for raw_result in raw_results:
-                validated_result = self.validate_result(raw_result)
+                validated_result = self.validate_result(raw_result, default_region=default_region)
                 validated_results.append(validated_result)
             
             return validated_results
@@ -125,8 +145,8 @@ Return JSON array:
         except Exception as e:
             print(f"Error in batch analysis: {e}")
             return []
-    
-    def process_all_articles(self, articles: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+
+    def process_all_articles(self, articles: List[Dict[str, str]], default_region: str = "UK_NA") -> List[Dict[str, Any]]:
         """Process all articles in batches"""
         
         all_results = []
@@ -138,7 +158,7 @@ Return JSON array:
             
             print(f"Processing batch {batch_num}/{total_batches} ({len(batch)} articles)")
             
-            batch_results = self.analyze_batch(batch)
+            batch_results = self.analyze_batch(batch, default_region=default_region)
             
             if batch_results:
                 # Add original article data to results
@@ -240,6 +260,7 @@ def main():
     
     import os
     import dotenv
+
     dotenv.load_dotenv()
 
     analyzer = HangarArticleAnalyzer(api_key=os.getenv("OPENAI_API_KEY"))
@@ -252,5 +273,69 @@ def main():
     
     print(json.dumps(report, indent=2))
 
+def filter_files():
+    import os
+    import glob
+    import pandas as pd
+    from openpyxl import load_workbook
+    from openpyxl.styles import PatternFill
+
+    reports_folder = "reports"
+    output_folder = "reports"
+    default_region="UK_NA"
+    os.makedirs(output_folder, exist_ok=True)
+
+    excel_files = glob.glob(os.path.join(reports_folder, "*.xlsx"))
+
+    analyzer = HangarArticleAnalyzer(api_key=os.getenv("OPENAI_API_KEY"))
+
+    # Define fills
+    red_fill = PatternFill(start_color="fa0228", end_color="fa0228", fill_type="solid")
+    blue_fill = PatternFill(start_color="00f7ff", end_color="00f7ff", fill_type="solid")
+    yellow_fill = PatternFill(start_color="ffe100", end_color="ffe100", fill_type="solid")
+
+    for file in excel_files:
+        file_name = os.path.basename(file)
+        default_region = file_name[:-21] if file_name.endswith("_hangar_projects.xlsx") else default_region
+        df = pd.read_excel(file)
+        articles = []
+        for idx, row in df.iterrows():
+            articles.append({
+                "title": str(row.get("Project Title", "")),
+                "summary": str(row.get("Summary", ""))
+            })
+
+        results = analyzer.process_all_articles(articles, default_region)
+
+        # Add analysis columns
+        df["is_hangar_related"] = [r.get("is_hangar_related", False) for r in results]
+        df["region"] = [r.get("region", "N/A") for r in results]
+        df["country"] = [r.get("country", "N/A") for r in results]
+        df["completion_status"] = [r.get("completion_status", False) for r in results]
+
+        # Save to new Excel file
+        output_path = os.path.join(output_folder, os.path.basename(file))
+        df.to_excel(output_path, index=False)
+
+        # Apply background colors
+        wb = load_workbook(output_path)
+        ws = wb.active
+        for i, r in enumerate(results, start=2):  # Excel rows start at 2 (header is 1)
+            # 1. Red for outside of territory (region == "N/A")
+            if r.get("region") != default_region:
+                ws[f"A{i}"].fill = red_fill
+                continue
+            # 2. Yellow for not hangar project
+            elif not r.get("is_hangar_related", False):
+                # for cell in ws[i]:
+                ws[f"A{i}"].fill = yellow_fill
+                continue
+            # 3. Blue for completed articles
+            elif r.get("completion_status", False):
+                ws[f"A{i}"].fill = blue_fill
+
+        wb.save(output_path)
+    pass
+
 if __name__ == "__main__":
-    main()
+    filter_files()
