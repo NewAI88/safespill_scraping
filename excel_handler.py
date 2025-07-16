@@ -97,27 +97,26 @@ class ExcelHandler:
                 headers = self.config.EXCEL_FIELDS
                 
                 # Key (first word of title + region + country)
-                keys = []
-                
+                patterns_set = set()
+
                 # Read existing data (skip header row)
                 for row in ws.iter_rows(min_row=2, values_only=True):
                     if any(row):  # Skip empty rows
                         row_dict = dict(zip(headers, row))
                         existing_data.append(row_dict)
-                        keys.append(f"{row_dict.get('Title', '').split()[0].lower()}_{row_dict.get('Region', '').lower()}_{row_dict.get('Country', '').lower()}")
-                
+                        patterns_set.update(row_dict.get('patterns', "").split(', '))
+
                 # Filter new data to avoid duplicates
                 filtered_new_data = []
                 for article in new_data:
-                    title = article.get('Project Title', '').split()[0].lower()
-                    region = article.get('Region', '').lower()
-                    country = article.get('Country', '').lower()
-                    key = f"{title}_{region}_{country}"
+                    patterns = article.get('patterns', [])
                     
-                    if key not in keys:
-                        filtered_new_data.append(article)
-                        keys.append(key)
-                
+                    if any(pattern in patterns_set for pattern in patterns):
+                        continue
+                    
+                    filtered_new_data.append(article)
+                    patterns_set.update(patterns)
+                     
                 # Combine new data with existing data (new data first)
                 combined_data = filtered_new_data + existing_data
 
@@ -133,6 +132,8 @@ class ExcelHandler:
                 for row_idx, row_data in enumerate(combined_data, 2):
                     for col_idx, field in enumerate(headers, 1):
                         value = row_data.get(field, '')
+                        if isinstance(value, list):
+                            value = ', '.join(value)
                         cell = ws.cell(row=row_idx, column=col_idx, value=value)
                         
                         # Add hyperlink for Source URL column
