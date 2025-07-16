@@ -3,6 +3,7 @@ import json
 import time
 from typing import List, Dict, Any
 import math
+from datetime import datetime
 
 class HangarArticleAnalyzer:
     def __init__(self, api_key: str, model: str = "gpt-4o", default_region: str = "UK_NA"):
@@ -10,11 +11,14 @@ class HangarArticleAnalyzer:
         self.model = model
         self.batch_size = 10  # Safe batch size for 50-token articles
         self.default_region = default_region
+        self.current_date = datetime.now().strftime("%B %d, %Y")
 
     def create_batch_prompt(self, articles: List[Dict[str, str]]) -> str:
         """Create optimized batch prompt for multiple articles"""
         
-        system_prompt = """Analyze aircraft hangar articles and return structured JSON.
+        system_prompt = f"""Analyze aircraft hangar articles and return structured JSON.
+
+IMPORTANT: Today's date is {self.current_date}. Use this for determining completion status.
 
 DETAILED FIELD EXPLANATIONS:
 
@@ -50,9 +54,15 @@ DETAILED FIELD EXPLANATIONS:
    - LATAM: Latin America (Mexico, Central America, South America)
 
 4. **completion_status** (boolean):
-   - True: Project is already completed/finished/opened
-   - False: Project is planned, under construction, or in progress
-   - Look for keywords: "opens", "completed", "inaugurated" vs "planned", "will build", "under construction"
+   - CRITICAL: Consider today's date is {self.current_date}
+   - True if:
+     * Project is already completed/finished/opened ("opens", "completed", "inaugurated")
+     * Project had a deadline that has already passed (e.g., "by end of 2024", "by Q1 2025", "by June 2025")
+     * Project was scheduled for a past date (e.g., "opens in 2024", "scheduled for early 2025")
+   - False if:
+     * Project is planned for future dates ("will open in 2026", "planned for 2027")
+     * Project is under construction with no specific completion date
+     * Project is in planning phase
 
 For each article, return:
 {
