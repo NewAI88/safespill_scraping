@@ -108,7 +108,7 @@ Return JSON array:
             elif country in ['MX', 'BR', 'AR', 'CL', 'CO', 'PE', 'VE', 'EC', 'BO', 'PY', 'UY', 'GY', 'SR', 'GF', 'CR', 'PA', 'NI', 'HN', 'GT', 'BZ', 'SV', 'CU', 'DO', 'HT', 'JM', 'TT', 'BB', 'GD', 'VC', 'LC', 'AG', 'DM', 'KN', 'BS', 'BM', 'PR', 'VI', 'AW', 'CW', 'SX', 'BQ', 'MQ', 'GP', 'BL', 'MF', 'PM', 'TC', 'AI', 'VG', 'KY', 'MS', 'FK']:
                 result['region'] = 'LATAM'
             else:
-                result['region'] = self.default_region  # Default fallback
+                result['region'] = 'N/A' # self.default_region  # Default fallback
         else:
             result['region'] = current_region
 

@@ -104,13 +104,13 @@ class SafespillScraper:
 
             # Update Excel file
             logger.info(f"Updating Excel file with {len(analyzed_articles)} new articles...")
-            excel_filepath = excel_handler.update_existing_excel(analyzed_articles)
+            excel_filepath, num_new_data = excel_handler.update_existing_excel(analyzed_articles)
             
             # Send email report
             logger.info("Sending email report...")
             for recipient in self.config.REGIONS[region]['recipient_emails']:
                 email_success = email_sender.send_report_email(
-                    excel_filepath, region, len(analyzed_articles), recipient
+                    excel_filepath, region, num_new_data, recipient
                 )
                 logger.info(f"Email sent to {recipient}: {'Success' if email_success else 'Failed'}")
             

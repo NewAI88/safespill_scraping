@@ -96,15 +96,31 @@ class ExcelHandler:
                 existing_data = []
                 headers = self.config.EXCEL_FIELDS
                 
+                # Key (first word of title + region + country)
+                keys = []
+                
                 # Read existing data (skip header row)
                 for row in ws.iter_rows(min_row=2, values_only=True):
                     if any(row):  # Skip empty rows
                         row_dict = dict(zip(headers, row))
                         existing_data.append(row_dict)
+                        keys.append(f"{row_dict.get('Title', '').split()[0].lower()}_{row_dict.get('Region', '').lower()}_{row_dict.get('Country', '').lower()}")
+                
+                # Filter new data to avoid duplicates
+                filtered_new_data = []
+                for article in new_data:
+                    title = article.get('Title', '').split()[0].lower()
+                    region = article.get('Region', '').lower()
+                    country = article.get('Country', '').lower()
+                    key = f"{title}_{region}_{country}"
+                    
+                    if key not in keys:
+                        filtered_new_data.append(article)
+                        keys.append(key)
                 
                 # Combine new data with existing data (new data first)
-                combined_data = new_data + existing_data
-                
+                combined_data = filtered_new_data + existing_data
+
                 # Clear existing content (except header)
                 ws.delete_rows(2, ws.max_row)
                 
@@ -140,7 +156,7 @@ class ExcelHandler:
                 wb.save(self.filepath)
                 
                 print(f"Updated Excel file: {self.filepath}")
-                return self.filepath
+                return self.filepath, len(filtered_new_data)
                 
             except PermissionError as e:
                 if attempt < max_retries - 1:
