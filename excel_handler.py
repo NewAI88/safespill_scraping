@@ -25,6 +25,39 @@ class ExcelHandler:
             self.filename = f'{region}.xlsx'
 
         self.filepath = os.path.join(self.reports_dir, self.filename)
+        self.pattern_set = self._load_all_patterns()
+
+    def _load_all_patterns(self) -> set:
+        """Load all patterns from every tab in the Excel file."""
+        pattern_set = set()
+        if not os.path.exists(self.filepath):
+            return pattern_set
+        try:
+            wb = load_workbook(self.filepath)
+            headers = self.config.EXCEL_FIELDS
+            pattern_idx = None
+            if 'patterns' in headers:
+                pattern_idx = headers.index('patterns')
+            else:
+                return pattern_set
+            for ws in wb.worksheets:
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if row and len(row) > pattern_idx:
+                        patterns = row[pattern_idx]
+                        if patterns:
+                            if isinstance(patterns, str):
+                                for p in patterns.split(','):
+                                    p = p.strip()
+                                    if p:
+                                        pattern_set.add(p)
+                            elif isinstance(patterns, list):
+                                for p in patterns:
+                                    if p:
+                                        pattern_set.add(p)
+            return pattern_set
+        except Exception as e:
+            print(f"Error loading patterns: {str(e)}")
+            return pattern_set
     
     def create_new_excel(self) -> str:
         """Create a new Excel file with the scraped data"""
@@ -78,8 +111,8 @@ class ExcelHandler:
             print(f"Error creating Excel file: {str(e)}")
             raise
     
-    def update_existing_excel(self, new_data: List[Dict[str, Any]]) -> str:
-        """Update existing Excel file by adding new data to the top"""
+    def update_existing_excel(self, new_data: List[Dict[str, Any]]) -> tuple[str, int]:
+        """Update existing Excel file by creating a new tab with week number, filtering by pattern_set"""
         max_retries = 3
         retry_delay = 2  # seconds
         
@@ -90,73 +123,67 @@ class ExcelHandler:
                 
                 # Load existing workbook
                 wb = load_workbook(self.filepath)
-                ws = wb.active
                 
-                # Get existing data
-                existing_data = []
+                # Get current week number
+                current_week = datetime.now().isocalendar()[1]
+                new_tab_name = f"W{current_week}"
+                
+                # Create new worksheet
+                ws = wb.create_sheet(title=new_tab_name)
+                
+                # Get headers
                 headers = self.config.EXCEL_FIELDS
                 
-                # Key (first word of title + region + country)
-                patterns_set = set()
-
-                # Read existing data (skip header row)
-                for row in ws.iter_rows(min_row=2, values_only=True):
-                    if any(row):  # Skip empty rows
-                        row_dict = dict(zip(headers, row))
-                        existing_data.append(row_dict)
-                        patterns_set.update(row_dict.get('patterns', "").split(', '))
-
-                # Filter new data to avoid duplicates
+                # Add headers to new worksheet
+                for col, header in enumerate(headers, 1):
+                    cell = ws.cell(row=1, column=col, value=header)
+                    cell.font = Font(bold=True)
+                    cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+                    cell.font = Font(color="FFFFFF", bold=True)
+                    cell.alignment = Alignment(horizontal="center")
+                
+                # Filter new data to avoid duplicates (by pattern)
                 filtered_new_data = []
                 for article in new_data:
                     patterns = article.get('patterns', [])
-                    
-                    if any(pattern in patterns_set for pattern in patterns):
-                        continue
-                    
-                    filtered_new_data.append(article)
-                    patterns_set.update(patterns)
-                     
-                # Combine new data with existing data (new data first)
-                combined_data = filtered_new_data + existing_data
-
-                # Clear existing content (except header)
-                ws.delete_rows(2, ws.max_row)
+                    if isinstance(patterns, str):
+                        patterns = [p.strip() for p in patterns.split(',') if p.strip()]
+                    is_new = any(p not in self.pattern_set for p in patterns)
+                    if is_new:
+                        filtered_new_data.append(article)
+                        for p in patterns:
+                            self.pattern_set.add(p)
                 
-                # # Define fills
-                # red_fill = PatternFill(start_color="fa0228", end_color="fa0228", fill_type="solid")
-                # blue_fill = PatternFill(start_color="00f7ff", end_color="00f7ff", fill_type="solid")
-                # yellow_fill = PatternFill(start_color="ffe100", end_color="ffe100", fill_type="solid")
-                
-                # Add combined data
-                for row_idx, row_data in enumerate(combined_data, 2):
+                # Add filtered new data to the new worksheet
+                for row_idx, row_data in enumerate(filtered_new_data, 2):
                     for col_idx, field in enumerate(headers, 1):
                         value = row_data.get(field, '')
                         if isinstance(value, list):
                             value = ', '.join(value)
                         cell = ws.cell(row=row_idx, column=col_idx, value=value)
-                        
                         # Add hyperlink for Source URL column
                         if field == 'Source URL' and value:
                             cell.hyperlink = value
                             cell.font = Font(color="0000FF", underline="single")
                             cell.value = value
-                    
-                #     # 🔻 Apply background color based on conditions
-                #     if row_data.get("Region") != self.region.upper():
-                #         ws[f"A{row_idx}"].fill = red_fill
-                #         ws[f"E{row_idx}"].fill = red_fill
-                #     elif not row_data.get("Is Hangar Related", False):
-                #         ws[f"A{row_idx}"].fill = yellow_fill
-                #         ws[f"G{row_idx}"].fill = yellow_fill
-                #     elif row_data.get("Completion Status", False):
-                #         ws[f"A{row_idx}"].fill = blue_fill
-                #         ws[f"H{row_idx}"].fill = blue_fill
+                
+                # Auto-adjust column widths for new worksheet
+                for column in ws.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)
+                    ws.column_dimensions[column_letter].width = adjusted_width
                 
                 # Save the workbook
                 wb.save(self.filepath)
                 
-                print(f"Updated Excel file: {self.filepath}")
+                print(f"Created new tab '{new_tab_name}' with {len(filtered_new_data)} articles in Excel file: {self.filepath}")
                 return self.filepath, len(filtered_new_data)
                 
             except PermissionError as e:
@@ -175,23 +202,23 @@ class ExcelHandler:
                 raise
     
     def get_existing_urls(self) -> set:
-        """Get existing URLs from the Excel file to avoid duplicates"""
+        """Get existing URLs from all tabs in the Excel file to avoid duplicates"""
         try:
             if not os.path.exists(self.filepath):
                 return set()
             
             wb = load_workbook(self.filepath)
-            ws = wb.active
-            
             existing_urls = set()
             url_column = self.config.EXCEL_FIELDS.index('Source URL') + 1
             
-            # Read URLs from existing data (skip header row)
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                if row and len(row) >= url_column:
-                    url = row[url_column - 1]
-                    if url:
-                        existing_urls.add(url)
+            # Iterate through all worksheets
+            for ws in wb.worksheets:
+                # Read URLs from existing data (skip header row)
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if row and len(row) >= url_column:
+                        url = row[url_column - 1]
+                        if url:
+                            existing_urls.add(url)
             
             return existing_urls
             
