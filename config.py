@@ -65,6 +65,7 @@ class Config:
         'Date Published',
         "Region",
         "Country",
+        "patterns",
         # "Is Hangar Related",
         # "Completion Status",
         'Week Collected'

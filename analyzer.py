@@ -64,14 +64,33 @@ DETAILED FIELD EXPLANATIONS:
      * Project is under construction with no specific completion date
      * Project is in planning phase
 
+5. **keys** (array of strings):
+   - Extract 1-2 most important and special words from the title
+   - Focus on: Company names, location names (cities, airports), specific numbers/prices, project names
+   
+   - EXCLUDE common aviation/industry terms like: "hangar", "MRO", "aircraft", "aviation", "airport", "flight", "maintenance", "facility", "base", "construction", "expansion", "project", "opens", "new", "F-16", "aero"
+   - EXCLUDE country names like: "Spain", "Nigeria", "Germany", "China"
+   - EXCLUDE "2024", "2025", "2026"
+   
+   - !IMPORTANT each keys can't include space and only one word
+   - Each key should be 1-2 words maximum
+   - Examples:
+     * "Texel Air To Expand MRO Hangars In Bahrain" → ["Texel", "Bahrain"]
+     * "Amideast partners with Joramco to support Careers in Aviation Program" → ["Amideast", "Joramco"]
+     * "FTEJerez to open UK base at Oxford" → ["FTEJerez"]
+     * "Bird Aviation to open new hangar by end of 2024" → ["Bird"]
+     * "Lincoln Airport gets welcome surprises with runway project" → ["Lincoln"]
+     * "Registration is Now Open at Joramco Academy Offering a Discount for Early Applicants" → ["Joramco"]
+    
 For each article, return:
-{
+{{
     "article_id": number,
     "is_hangar_related": boolean,
     "country": string,
     "region": string,
-    "completion_status": boolean
-}
+    "completion_status": boolean,
+    "keys": array of strings
+}}
 
 Articles to analyze:
 """
@@ -85,7 +104,7 @@ Return JSON array:
 {{
     "results": [
         // {len(articles)} objects with article_id 1-{len(articles)}
-        // Each object must have: article_id, is_hangar_related, region, country, completion_status
+        // Each object must have: article_id, is_hangar_related, region, country, completion_status, keys
     ]
 }}"""
         
@@ -126,6 +145,9 @@ Return JSON array:
         result['is_hangar_related'] = bool(result.get('is_hangar_related', True))
         result['completion_status'] = bool(result.get('completion_status', False))
         
+        keys = result.get('keys', [])
+        result['patterns'] = [f"{key.strip().lower()}_{result.get('region').lower()}_{result.get('country').lower()}" for key in keys if isinstance(key, str) and len(key.strip()) > 0]
+
         return result
 
     def analyze_batch(self, articles: List[Dict[str, str]]) -> List[Dict[str, Any]]:
@@ -153,7 +175,8 @@ Return JSON array:
                     "Country": validated_result.get("country"),
                     "Region": validated_result.get("region"),
                     "Is Hangar Related": validated_result.get("is_hangar_related"),
-                    "Completion Status": validated_result.get("completion_status")
+                    "Completion Status": validated_result.get("completion_status"),
+                    "patterns": validated_result.get("patterns", []),
                 })  # Merge original article data with analysis result
 
             return validated_results
