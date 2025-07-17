@@ -65,17 +65,22 @@ DETAILED FIELD EXPLANATIONS:
      * Project is in planning phase
 
 5. **keys** (array of strings):
-   - Extract 1-2 most important and special words/phrases from the title
+   - Extract 1-2 most important and special words from the title
    - Focus on: Company names, location names (cities, airports), specific numbers/prices, project names
-   - EXCLUDE common aviation/industry terms like: "hangar", "MRO", "aircraft", "aviation", "airport", "flight", "maintenance", "facility", "base", "construction", "expansion", "project", "opens", "new", "F-16", "2024", "2025", "2026"
+   
+   - EXCLUDE common aviation/industry terms like: "hangar", "MRO", "aircraft", "aviation", "airport", "flight", "maintenance", "facility", "base", "construction", "expansion", "project", "opens", "new", "F-16", "aero"
+   - EXCLUDE country names like: "Spain", "Nigeria", "Germany", "China"
+   - EXCLUDE "2024", "2025", "2026"
+   
+   - !IMPORTANT each keys can't include space and only one word
    - Each key should be 1-2 words maximum
    - Examples:
-     * "Texel Air To Expand MRO Hangars In Bahrain" → ["Texel Air", "Bahrain"]
+     * "Texel Air To Expand MRO Hangars In Bahrain" → ["Texel", "Bahrain"]
      * "Amideast partners with Joramco to support Careers in Aviation Program" → ["Amideast", "Joramco"]
      * "FTEJerez to open UK base at Oxford" → ["FTEJerez"]
-     * "Bird Aviation to open new hangar by end of 2024" → ["Bird Aviation"]
-     * "Lincoln Airport gets welcome surprises with runway project" → ["Lincoln Airport"]
-    
+     * "Bird Aviation to open new hangar by end of 2024" → ["Bird"]
+     * "Lincoln Airport gets welcome surprises with runway project" → ["Lincoln"]
+     * "Registration is Now Open at Joramco Academy Offering a Discount for Early Applicants" → ["Joramco"]
     
 For each article, return:
 {{
