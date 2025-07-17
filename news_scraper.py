@@ -234,13 +234,19 @@ class NewsScraper:
                 unique_articles.append(article)
         
         return unique_articles
-    
-    def process_articles(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+
+    def process_articles(self, articles: List[Dict[str, Any]], is_backfill: bool) -> List[Dict[str, Any]]:
         """Process and format articles for Excel output"""
         processed_articles = []
         now = datetime.now()
         iso_year, iso_week, _ = now.isocalendar()
         current_week = f"{iso_year}-W{iso_week:02d}"
+        
+        # Set date threshold based on is_backfill
+        if is_backfill:
+            date_threshold = now - timedelta(days=365)
+        else:
+            date_threshold = now - timedelta(days=7)
         
         for article in articles:
             try:
@@ -251,8 +257,13 @@ class NewsScraper:
                 # source = article.get('source', '')
                 date_str = article.get('date', '')
                 
-                # Parse date
-                published_date = self._parse_date(date_str)
+                # Parse date (as string for output, as datetime for filtering)
+                published_date_str = self._parse_date(date_str)
+                article_date = datetime.strptime(published_date_str, '%Y-%m-%d')
+                
+                # Filter by date range
+                if article_date is None or article_date < date_threshold:
+                    continue
                 
                 # Determine country/region
                 # country_region = self._determine_country_region(title, snippet, source)
@@ -266,10 +277,10 @@ class NewsScraper:
                     'Summary': snippet,
                     # 'Country/Region': country_region,
                     # 'Language': language,
-                    'Date Published': published_date,
+                    'Date Published': published_date_str,
                     'Week Collected': current_week
                 }
-                
+
                 processed_articles.append(processed_article)
                 
             except Exception as e:

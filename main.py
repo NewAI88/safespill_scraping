@@ -89,7 +89,7 @@ class SafespillScraper:
             
             # Process articles
             logger.info(f"Processing {len(articles)} articles...")
-            processed_articles = scraper.process_articles(articles)
+            processed_articles = scraper.process_articles(articles, is_backfill=is_backfill)
             
             # Filter out existing articles using self.existing_urls
             new_articles = self.filter_new_urls(processed_articles)
